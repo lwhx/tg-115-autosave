@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TG 115 Autosave</title>
+    <style>
+      :root { color-scheme: light; --bg:#f4f1ea; --ink:#202124; --muted:#67635d; --line:#d9d0c2; --accent:#0f766e; --warn:#b45309; --bad:#b91c1c; --ok:#15803d; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: linear-gradient(135deg, #f8f5ef 0%, #ece5da 100%); }
+      header { padding: 24px clamp(16px, 4vw, 48px) 12px; border-bottom: 1px solid var(--line); }
+      h1 { margin: 0 0 6px; font-size: 28px; }
+      main { padding: 20px clamp(16px, 4vw, 48px) 40px; display: grid; gap: 16px; }
+      section { background: rgba(255,255,255,.72); border: 1px solid var(--line); border-radius: 8px; padding: 16px; box-shadow: 0 10px 30px rgba(38,31,22,.06); }
+      h2 { margin: 0 0 14px; font-size: 18px; }
+      label { display: grid; gap: 6px; margin-bottom: 10px; color: var(--muted); font-size: 13px; }
+      input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: inherit; background: #fffdfa; color: var(--ink); }
+      textarea { min-height: 110px; resize: vertical; }
+      button { border: 0; border-radius: 6px; padding: 10px 14px; background: var(--accent); color: white; font-weight: 650; cursor: pointer; }
+      button.secondary { background: #51483d; }
+      button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+      .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+      .muted { color: var(--muted); }
+      .status { white-space: pre-wrap; margin-top: 10px; color: var(--muted); }
+      .hidden { display: none; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { border-bottom: 1px solid var(--line); text-align: left; padding: 8px; vertical-align: top; }
+      th { color: var(--muted); font-weight: 650; }
+      .badge { display: inline-block; padding: 3px 7px; border-radius: 999px; background: #e8e1d5; }
+      .success { color: var(--ok); } .failed,.needs_attention { color: var(--bad); } .organizing,.receiving,.received { color: var(--warn); }
+      code { word-break: break-all; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>TG 115 Autosave</h1>
+      <div class="muted">Telegram 分享监听、115 自动转存、基础整理</div>
+    </header>
+    <main>
+      <section id="loginPanel">
+        <h2>登录</h2>
+        <label>管理员密码<input id="password" type="password" autocomplete="current-password" /></label>
+        <button id="loginBtn">进入控制台</button>
+        <div id="loginStatus" class="status"></div>
+      </section>
+
+      <div id="appPanel" class="hidden">
+        <div class="grid">
+          <section>
+            <h2>服务配置</h2>
+            <label>115 Cookie<textarea id="cookie115" placeholder="已配置时可留空或保持“已配置”"></textarea></label>
+            <label>Telegram Bot Token<input id="telegramBotToken" placeholder="已配置时可留空或保持“已配置”" /></label>
+            <label>监听 Chat ID<input id="telegramChatId" placeholder="例如 -1001234567890" /></label>
+            <label>通知 Chat ID<input id="telegramNotifyChatId" placeholder="默认可与监听 Chat ID 相同" /></label>
+            <label>115 目标根目录 CID<input id="targetRootCid" placeholder="0" /></label>
+            <div class="row">
+              <button id="saveSettingsBtn">保存配置</button>
+              <button class="ghost" id="testCookieBtn">测试 Cookie</button>
+              <button class="ghost" id="testBotBtn">测试 Bot</button>
+              <button class="ghost" id="testOauthBtn">测试 115 OAuth</button>
+            </div>
+            <div id="settingsStatus" class="status"></div>
+          </section>
+
+          <section>
+            <h2>115 OAuth</h2>
+            <p class="muted">后处理使用 OAuth token 扫描、重命名和移动文件。</p>
+            <button id="startOauthBtn">生成扫码登录</button>
+            <div id="oauthStatus" class="status"></div>
+            <div id="oauthQr"></div>
+          </section>
+        </div>
+
+        <section>
+          <h2>手动投喂</h2>
+          <textarea id="manualText" placeholder="粘贴 TG 消息或 115 分享链接"></textarea>
+          <div class="row"><button id="manualBtn">创建转存任务</button><button class="secondary" id="refreshBtn">刷新任务</button></div>
+          <div id="manualStatus" class="status"></div>
+        </section>
+
+        <section>
+          <h2>任务</h2>
+          <div id="tasks"></div>
+        </section>
+
+        <section>
+          <h2>事件</h2>
+          <div id="events"></div>
+        </section>
+      </div>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+

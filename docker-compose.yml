@@ -1,0 +1,13 @@
+services:
+  tg-115-autosave:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tg-115-autosave
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8715:8715"
+    volumes:
+      - ./data:/app/data

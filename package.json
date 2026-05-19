@@ -1,0 +1,23 @@
+{
+  "name": "tg-115-autosave",
+  "version": "0.1.0",
+  "description": "Dockerized Telegram to 115 autosave service with basic organization.",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "axios": "^1.13.2",
+    "better-sqlite3": "^11.10.0",
+    "fastify": "^5.6.2",
+    "qrcode-terminal": "^0.12.0",
+    "telegraf": "^4.16.3",
+    "zod": "^4.1.12"
+  }
+}

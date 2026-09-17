@@ -28,6 +28,8 @@ async function loadSettings() {
   const s = data.settings || {}
   $('cookie115').value = s.cookie115 || ''
   $('telegramBotToken').value = s.telegramBotToken || ''
+  $('clearCookie115').checked = false
+  $('clearTelegramBotToken').checked = false
   $('telegramChatId').value = s.telegramChatId || ''
   $('telegramNotifyChatId').value = s.telegramNotifyChatId || ''
   $('targetRootCid').value = s.targetRootCid || '0'
@@ -42,6 +44,8 @@ async function saveSettings() {
       telegramChatId: value('telegramChatId'),
       telegramNotifyChatId: value('telegramNotifyChatId'),
       targetRootCid: value('targetRootCid') || '0',
+      clearCookie115: $('clearCookie115').checked,
+      clearTelegramBotToken: $('clearTelegramBotToken').checked,
     }
     await api('/api/settings', { method: 'PUT', body: JSON.stringify(payload) })
     show('settingsStatus', '配置已保存')
@@ -116,4 +120,3 @@ $('testCookieBtn').onclick = async () => { try { show('settingsStatus', await ap
 $('testBotBtn').onclick = async () => { try { show('settingsStatus', await api('/api/settings/test-telegram', { method: 'POST', body: '{}' })) } catch (e) { show('settingsStatus', e.message) } }
 $('testOauthBtn').onclick = async () => { try { show('settingsStatus', await api('/api/settings/test-115-oauth', { method: 'POST', body: '{}' })) } catch (e) { show('settingsStatus', e.message) } }
 setInterval(() => { if (!$('appPanel').classList.contains('hidden')) loadTasks() }, 8000)
-

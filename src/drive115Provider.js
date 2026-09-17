@@ -8,10 +8,12 @@ function headers(token) {
 }
 
 async function requestJson(url, init = {}, fallback = '115 API request failed') {
-  const resp = await fetch(url, init)
+  const resp = await fetch(url, { ...init, signal: init.signal || AbortSignal.timeout(30000) })
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
-    throw new Error(`${fallback} ${resp.status}: ${text.slice(0, 180)}`)
+    const error = new Error(`${fallback} ${resp.status}: ${text.slice(0, 180)}`)
+    error.status = resp.status
+    throw error
   }
   const data = await resp.json()
   if (data.code != null && data.code !== 0) throw new Error(data.message || `${fallback}: code=${data.code}`)
@@ -31,7 +33,9 @@ async function post(url, body, token) {
 }
 
 function mapFileItem(item, accountId) {
-  const isFolder = item.fc === '1' || item.isdir === 1 || (!item.fid && !!item.cid)
+  const category = item.fc == null ? null : String(item.fc)
+  const isFolder = category != null ? category === '0' : Number(item.isdir) === 1 || (!item.fid && !!item.cid)
+  const size = item.fs ?? item.s
   return {
     provider: '115',
     accountId,
@@ -40,8 +44,8 @@ function mapFileItem(item, accountId) {
     parentFileId: String(item.pid || item.parent_id || '0'),
     name: item.n || item.fn || item.file_name || '',
     type: isFolder ? 'folder' : 'file',
-    size: item.s != null ? Number(item.s) : undefined,
-    contentHash: item.sha,
+    size: size != null ? Number(size) : undefined,
+    contentHash: item.sha1 || item.sha || '',
   }
 }
 
@@ -84,14 +88,14 @@ export async function drive115RenameBatch(token, renames) {
       await post(`${BASE}/ufile/update`, { file_id: fileId, file_name: newName }, token)
       results.push({ fileId, status: 'success', newName })
     } catch (error) {
-      results.push({ fileId, status: 'error', message: error.message })
+      results.push({ fileId, status: 'error', message: error.message, error })
     }
   }
   return results
 }
 
 export async function drive115Mkdir(token, parentId, name) {
-  const data = await post(`${BASE}/ufile/mkdir`, { cid: String(parentId), cname: name }, token)
+  const data = await post(`${BASE}/folder/add`, { pid: String(parentId), file_name: name }, token)
   return {
     provider: '115',
     accountId: token.user_id || token.accountId || '115',
@@ -114,4 +118,3 @@ export function createDrive115Provider() {
     },
   }
 }
-

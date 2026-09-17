@@ -16,6 +16,8 @@
       label { display: grid; gap: 6px; margin-bottom: 10px; color: var(--muted); font-size: 13px; }
       input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; font: inherit; background: #fffdfa; color: var(--ink); }
       textarea { min-height: 110px; resize: vertical; }
+      .inline-choice { display: flex; align-items: center; gap: 8px; }
+      .inline-choice input { width: auto; }
       button { border: 0; border-radius: 6px; padding: 10px 14px; background: var(--accent); color: white; font-weight: 650; cursor: pointer; }
       button.secondary { background: #51483d; }
       button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
@@ -50,7 +52,9 @@
           <section>
             <h2>服务配置</h2>
             <label>115 Cookie<textarea id="cookie115" placeholder="已配置时可留空或保持“已配置”"></textarea></label>
+            <label class="inline-choice"><input id="clearCookie115" type="checkbox" />清除已保存的 115 Cookie</label>
             <label>Telegram Bot Token<input id="telegramBotToken" placeholder="已配置时可留空或保持“已配置”" /></label>
+            <label class="inline-choice"><input id="clearTelegramBotToken" type="checkbox" />清除已保存的 Bot Token 并停止监听</label>
             <label>监听 Chat ID<input id="telegramChatId" placeholder="例如 -1001234567890" /></label>
             <label>通知 Chat ID<input id="telegramNotifyChatId" placeholder="默认可与监听 Chat ID 相同" /></label>
             <label>115 目标根目录 CID<input id="targetRootCid" placeholder="0" /></label>
@@ -93,4 +97,3 @@
     <script src="/app.js"></script>
   </body>
 </html>
-

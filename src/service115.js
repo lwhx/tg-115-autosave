@@ -80,7 +80,7 @@ export class Service115 {
     return {
       success: true,
       fileIds: all.map((item) => String(item.cid || item.fid || '')).filter(Boolean).sort(),
-      files: all.map((item) => ({ shareFileId: String(item.cid || item.fid || ''), name: item.n || '', type: item.cid ? 'folder' : 'file', size: Number(item.s || item.fs || 0) })),
+      files: all.map((item) => ({ shareFileId: String(item.cid || item.fid || ''), name: item.n || '', type: item.cid ? 'folder' : 'file', size: item.s != null || item.fs != null ? Number(item.s ?? item.fs) : null, contentHash: item.sha || item.sha1 || '' })),
       shareTitle: title,
       count: total,
     }
@@ -96,6 +96,7 @@ export class Service115 {
     }), {
       headers: this.getHeaders(cookie),
       httpsAgent: this.agent,
+      timeout: 30000,
     })
     if (res.data?.state) return { success: true, count: fileIds.length }
     return { success: false, msg: res.data?.error || res.data?.msg || '转存被拒绝' }
@@ -103,4 +104,3 @@ export class Service115 {
 }
 
 export default new Service115()
-

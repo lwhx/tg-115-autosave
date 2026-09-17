@@ -12,6 +12,7 @@ import { openDb, createRepository } from './db.js'
 import { Service115 } from './service115.js'
 import { Organizer115 } from './organizer115.js'
 import { TaskRunner } from './taskRunner.js'
+import { TaskWorker } from './taskWorker.js'
 import { TelegramService } from './telegram.js'
 import { parse115ShareLinks } from './shareLinks.js'
 
@@ -24,8 +25,9 @@ const repo = createRepository(db)
 const receiver = new Service115()
 const organizer = new Organizer115()
 let telegram
-const taskRunner = new TaskRunner({ repo, receiver, organizer, notifier: async (message) => telegram?.notify(message) })
-telegram = new TelegramService({ repo, taskRunner })
+const taskRunner = new TaskRunner({ repo, receiver, organizer })
+telegram = new TelegramService({ repo })
+const taskWorker = new TaskWorker({ repo, runner: taskRunner, notifier: async (message, options) => telegram.notify(message, options) })
 
 const sessions = new Set()
 const oauth115 = { running: false, qrcode: '', status: 'idle', error: '', account: null }
@@ -83,16 +85,21 @@ async function buildServer() {
       telegramChatId: z.string().optional(),
       telegramNotifyChatId: z.string().optional(),
       targetRootCid: z.string().optional(),
+      clearCookie115: z.boolean().optional(),
+      clearTelegramBotToken: z.boolean().optional(),
     }).parse(req.body || {})
     const current = repo.getSettings()
     const next = { ...current }
     for (const [key, value] of Object.entries(body)) {
+      if (key === 'clearCookie115' || key === 'clearTelegramBotToken') continue
       if (value === undefined) continue
-      if ((key === 'cookie115' || key === 'telegramBotToken') && value === '已配置') continue
+      if ((key === 'cookie115' || key === 'telegramBotToken') && (!value.trim() || value.trim() === '已配置')) continue
       next[key] = value
     }
+    if (body.clearCookie115) next.cookie115 = ''
+    if (body.clearTelegramBotToken) next.telegramBotToken = ''
     repo.putSettings(next)
-    await telegram.restart()
+    if (next.telegramBotToken !== current.telegramBotToken || (next.telegramBotToken && !telegram.bot)) await telegram.restart()
     return { ok: true, settings: maskSettings(repo.getSettings()) }
   })
 
@@ -155,7 +162,6 @@ async function buildServer() {
     for (const link of links) {
       const task = repo.upsertTask({ ...link, source: 'manual' })
       tasks.push(task)
-      taskRunner.run(task.id).catch((error) => repo.addEvent(task.id, 'error', error.message))
     }
     return { ok: true, count: tasks.length, tasks }
   })
@@ -164,9 +170,7 @@ async function buildServer() {
     const id = Number(req.params.id)
     const task = repo.getTask(id)
     if (!task) return { ok: false, error: '任务不存在' }
-    repo.updateTask(id, { status: 'pending', error: '' })
-    taskRunner.run(id).catch((error) => repo.addEvent(id, 'error', error.message))
-    return { ok: true, task: repo.getTask(id) }
+    return { ok: true, task: repo.retryTask(id) }
   })
 
   app.setErrorHandler((error, _req, reply) => {
@@ -178,9 +182,17 @@ async function buildServer() {
 }
 
 const app = await buildServer()
-await telegram.restart().catch((error) => app.log.warn(error, 'telegram start failed'))
 await app.listen({ port: PORT, host: '0.0.0.0' })
+taskWorker.start()
+await telegram.restart().catch((error) => app.log.warn(error, 'telegram start failed'))
 
-process.once('SIGINT', async () => { await telegram.stop(); await app.close(); process.exit(0) })
-process.once('SIGTERM', async () => { await telegram.stop(); await app.close(); process.exit(0) })
+/** 停止接收新请求、工作器和外部服务，再关闭数据库。 */
+async function shutdown() {
+  await app.close()
+  await taskWorker.stop()
+  await telegram.stop()
+  db.close()
+}
 
+process.once('SIGINT', async () => { await shutdown(); process.exit(0) })
+process.once('SIGTERM', async () => { await shutdown(); process.exit(0) })

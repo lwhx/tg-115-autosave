@@ -16,14 +16,19 @@ export class TaskWorker {
    * 创建工作器。
    * @param {{repo: object, runner: object, notifier?: Function, pollMs?: number, leaseMs?: number, concurrency?: number}} options 工作器配置。
    */
-  constructor({ repo, runner, notifier, pollMs = 1000, leaseMs = 60000, concurrency = 1 }) {
+  constructor({ repo, runner, notifier, pollMs = 1000, leaseMs = 60000, concurrency = 1, sleepFn = sleep, random = Math.random, uuid = crypto.randomUUID, setIntervalFn = setInterval, clearIntervalFn = clearInterval }) {
     this.repo = repo
     this.runner = runner
     this.notifier = notifier
     this.pollMs = pollMs
     this.leaseMs = leaseMs
     this.concurrency = Math.max(1, concurrency)
-    this.owner = `${process.pid}-${crypto.randomUUID()}`
+    this.sleep = sleepFn
+    this.random = random
+    this.uuid = uuid
+    this.setInterval = setIntervalFn
+    this.clearInterval = clearIntervalFn
+    this.owner = `${process.pid}-${this.uuid()}`
     this.stopping = true
     this.loops = []
   }
@@ -55,7 +60,7 @@ export class TaskWorker {
   async runLoop(index) {
     let databaseFailures = 0
     while (!this.stopping) {
-      const owner = `${this.owner}-task-${index}-${crypto.randomUUID()}`
+      const owner = `${this.owner}-task-${index}-${this.uuid()}`
       const controller = new AbortController()
       let task
       let renewal
@@ -64,7 +69,7 @@ export class TaskWorker {
         task = this.repo.claimNextTask(owner, this.leaseMs)
         if (!task) {
           databaseFailures = 0
-          await sleep(this.pollMs)
+          await this.sleep(this.pollMs)
           continue
         }
         renewal = this.startLeaseRenewal(() => this.repo.renewTaskLease(task.id, owner, this.leaseMs), controller, `任务 ${task.id} 续租`)
@@ -81,7 +86,7 @@ export class TaskWorker {
         databaseFailed = true
         this.reportError('任务工作器', error)
       } finally {
-        clearInterval(renewal)
+        this.clearInterval(renewal)
         if (task) {
           try { this.repo.releaseTaskLease(task.id, owner) }
           catch (error) {
@@ -90,7 +95,7 @@ export class TaskWorker {
           }
         }
       }
-      if (databaseFailed) await sleep(this.retryDelay(databaseFailures++))
+      if (databaseFailed) await this.sleep(this.retryDelay(databaseFailures++))
       else databaseFailures = 0
     }
   }
@@ -102,7 +107,7 @@ export class TaskWorker {
   async runNotificationLoop() {
     let databaseFailures = 0
     while (!this.stopping) {
-      const owner = `${this.owner}-notification-${crypto.randomUUID()}`
+      const owner = `${this.owner}-notification-${this.uuid()}`
       const controller = new AbortController()
       let notification
       let renewal
@@ -111,7 +116,7 @@ export class TaskWorker {
         notification = this.repo.claimNextNotification(owner, this.leaseMs)
         if (!notification) {
           databaseFailures = 0
-          await sleep(this.pollMs)
+          await this.sleep(this.pollMs)
           continue
         }
         renewal = this.startLeaseRenewal(() => this.repo.renewNotificationLease(notification.id, owner, this.leaseMs), controller, `通知 ${notification.id} 续租`)
@@ -127,7 +132,7 @@ export class TaskWorker {
         databaseFailed = true
         this.reportError('通知工作器', error)
       } finally {
-        clearInterval(renewal)
+        this.clearInterval(renewal)
         if (notification) {
           try { this.repo.releaseNotificationLease(notification.id, owner) }
           catch (error) {
@@ -136,21 +141,21 @@ export class TaskWorker {
           }
         }
       }
-      if (databaseFailed) await sleep(this.retryDelay(databaseFailures++))
+      if (databaseFailed) await this.sleep(this.retryDelay(databaseFailures++))
       else databaseFailures = 0
     }
   }
 
   /** 定时器中的数据库异常不得逸出；失去租约后要求执行器停止后续操作。 */
   startLeaseRenewal(renew, controller, scope) {
-    const timer = setInterval(() => {
+    const timer = this.setInterval(() => {
       try {
         if (renew()) return
       } catch (error) {
         this.reportError(scope, error)
       }
       controller.abort()
-      clearInterval(timer)
+      this.clearInterval(timer)
     }, Math.max(1000, Math.floor(this.leaseMs / 3)))
     return timer
   }
@@ -168,6 +173,6 @@ export class TaskWorker {
    */
   retryDelay(attemptCount) {
     const base = Math.min(300000, 1000 * 2 ** Math.min(attemptCount, 8))
-    return Math.floor(base * (0.8 + Math.random() * 0.4))
+    return Math.floor(base * (0.8 + this.random() * 0.4))
   }
 }

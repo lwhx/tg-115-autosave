@@ -5,10 +5,16 @@ import { createDrive115Provider } from './drive115Provider.js'
 import { normalizeMediaName } from './shareLinks.js'
 
 export class Organizer115 {
-  constructor({ configDir = OAUTH_STORE_DIR } = {}) {
+  /**
+   * 创建整理器。
+   * @param {{configDir?: string, store?: object, provider?: object, loginQr?: Function, sleep?: Function}} options 可替换依赖。
+   */
+  constructor({ configDir = OAUTH_STORE_DIR, store, provider, loginQr = loginWithDrive115QrCode, sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)) } = {}) {
     this.configDir = configDir
-    this.store = createAuthStore({ configDir })
-    this.provider = createDrive115Provider()
+    this.store = store || createAuthStore({ configDir })
+    this.provider = provider || createDrive115Provider()
+    this.loginQr = loginQr
+    this.sleep = sleep
   }
 
   async getToken() {
@@ -31,7 +37,7 @@ export class Organizer115 {
   }
 
   async startQrLogin({ onQrCode, timeoutMs = 120000 } = {}) {
-    return loginWithDrive115QrCode({
+    return this.loginQr({
       configDir: this.configDir,
       timeoutMs,
       renderQrCode: async (qrcode) => {
@@ -66,7 +72,7 @@ export class Organizer115 {
       const list = await this.list(parentId)
       assertActive?.()
       if (list.length > 0) return list
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
+      await this.sleep(delayMs)
     }
     return []
   }

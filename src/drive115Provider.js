@@ -7,8 +7,8 @@ function headers(token) {
   return { Authorization: `Bearer ${token.access_token}` }
 }
 
-async function requestJson(url, init = {}, fallback = '115 API request failed') {
-  const resp = await fetch(url, { ...init, signal: init.signal || AbortSignal.timeout(30000) })
+async function requestJson(url, init = {}, fallback = '115 API request failed', fetcher = fetch) {
+  const resp = await fetcher(url, { ...init, signal: init.signal || AbortSignal.timeout(30000) })
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
     const error = new Error(`${fallback} ${resp.status}: ${text.slice(0, 180)}`)
@@ -20,16 +20,16 @@ async function requestJson(url, init = {}, fallback = '115 API request failed') 
   return data
 }
 
-async function get(url, token) {
-  return requestJson(url, { headers: headers(token) }, '115 GET failed')
+async function get(url, token, fetcher = fetch) {
+  return requestJson(url, { headers: headers(token) }, '115 GET failed', fetcher)
 }
 
-async function post(url, body, token) {
+async function post(url, body, token, fetcher = fetch) {
   return requestJson(url, {
     method: 'POST',
     headers: { ...headers(token), 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams(body).toString(),
-  }, '115 POST failed')
+  }, '115 POST failed', fetcher)
 }
 
 function mapFileItem(item, accountId) {
@@ -49,12 +49,12 @@ function mapFileItem(item, accountId) {
   }
 }
 
-export async function drive115RefreshToken(token) {
+export async function drive115RefreshToken(token, fetcher = fetch) {
   const data = await requestJson(REFRESH_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ refresh_token: token.refresh_token, client_id: CLIENT_ID, client_secret: CLIENT_SECRET }).toString(),
-  }, '115 token refresh failed')
+  }, '115 token refresh failed', fetcher)
   const payload = data.data || data
   const expiresIn = Number(payload.expires_in || token.expires_in || 0)
   return {
@@ -66,13 +66,13 @@ export async function drive115RefreshToken(token) {
   }
 }
 
-export async function drive115ListDir(token, cid = '0') {
+export async function drive115ListDir(token, cid = '0', fetcher = fetch) {
   const allItems = []
   let offset = 0
   const limit = 200
   while (true) {
     const qs = new URLSearchParams({ cid, limit: String(limit), offset: String(offset), cur: '1', show_dir: '1' })
-    const data = await get(`${BASE}/ufile/files?${qs}`, token)
+    const data = await get(`${BASE}/ufile/files?${qs}`, token, fetcher)
     const items = data.data || []
     for (const item of items) allItems.push(mapFileItem(item, token.user_id || token.accountId || '115'))
     offset += limit
@@ -81,11 +81,11 @@ export async function drive115ListDir(token, cid = '0') {
   return allItems
 }
 
-export async function drive115RenameBatch(token, renames) {
+export async function drive115RenameBatch(token, renames, fetcher = fetch) {
   const results = []
   for (const { fileId, newName } of renames) {
     try {
-      await post(`${BASE}/ufile/update`, { file_id: fileId, file_name: newName }, token)
+      await post(`${BASE}/ufile/update`, { file_id: fileId, file_name: newName }, token, fetcher)
       results.push({ fileId, status: 'success', newName })
     } catch (error) {
       results.push({ fileId, status: 'error', message: error.message, error })
@@ -94,8 +94,8 @@ export async function drive115RenameBatch(token, renames) {
   return results
 }
 
-export async function drive115Mkdir(token, parentId, name) {
-  const data = await post(`${BASE}/folder/add`, { pid: String(parentId), file_name: name }, token)
+export async function drive115Mkdir(token, parentId, name, fetcher = fetch) {
+  const data = await post(`${BASE}/folder/add`, { pid: String(parentId), file_name: name }, token, fetcher)
   return {
     provider: '115',
     accountId: token.user_id || token.accountId || '115',
@@ -107,14 +107,14 @@ export async function drive115Mkdir(token, parentId, name) {
   }
 }
 
-export function createDrive115Provider() {
+export function createDrive115Provider({ fetcher = fetch } = {}) {
   return {
     id: '115',
-    auth: { refresh: drive115RefreshToken },
+    auth: { refresh: async (token) => drive115RefreshToken(token, fetcher) },
     files: {
-      list: async ({ token, parentFileId = '0' }) => drive115ListDir(token, parentFileId),
-      mkdir: async ({ token, parentId = '0', name }) => drive115Mkdir(token, parentId, name),
-      renameBatch: async ({ token, renames }) => drive115RenameBatch(token, renames),
+      list: async ({ token, parentFileId = '0' }) => drive115ListDir(token, parentFileId, fetcher),
+      mkdir: async ({ token, parentId = '0', name }) => drive115Mkdir(token, parentId, name, fetcher),
+      renameBatch: async ({ token, renames }) => drive115RenameBatch(token, renames, fetcher),
     },
   }
 }
